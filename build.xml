@@ -1,0 +1,106 @@
+<project name="PolicyServer" default="package" basedir=".">
+
+<property name="src" location="src"/>
+<property name="build" location="target"/>
+<property name="classes" location="${build}/classes"/>
+<property name="modules" location="${build}/modules"/>
+<property name="common.lib" location="lib"/>
+<property name="resources" location="resources"/>
+
+<target name="prepare">
+  <mkdir dir="${build}" />
+  <mkdir dir="${classes}" />
+  <mkdir dir="${modules}" />
+</target>
+
+<target name="clean">
+  <delete dir="${build}" />
+</target>
+
+<target name="run" depends="package">
+  	<echo message="*** Running Policy Server ***" />
+  	<mkdir dir="log" />
+	<java  dir="${basedir}"
+           fork="true"
+           failonerror="true"
+           maxmemory="128m"
+           classname="common.policyserver.PolicyServer"
+           >
+         <classpath>
+         	<pathelement location="${resources}" />
+           	<pathelement location="${common.lib}/log4j-1.2.14.jar" />
+           	<pathelement location="${common.lib}/commons-daemon.jar" />
+         	<pathelement location="${modules}/policyserver.jar" />
+         </classpath>
+    </java>
+
+</target>
+
+<target name="compile" depends="prepare">
+  <echo message="*** Compiling Policy Server ***" />
+  <javac srcdir="${src}"
+         destdir="${classes}"
+         classpath="${common.lib}/log4j-1.2.14.jar;${common.lib}/jdom.jar;${common.lib}/commons-daemon.jar"
+         debug="on"
+         source="1.5"
+         target="1.5"
+  />
+  <echo message="*** Complete ***" />
+</target>
+
+<target name="package" depends="compile">
+	<jar destfile="${modules}/policyserver.jar"
+	       basedir="${classes}"
+	       includes="common/**" >
+	       
+	   <fileset dir="${classes}"
+	             includes="common/**" />
+
+	   <manifest>
+	    	<attribute name="Built-By" value="Ant"/>
+	        <attribute name="Main-Class" value="common.policyserver.PolicyServer"/>
+	        <attribute name="Class-Path" value="log4j-1.2.8.jar"/>
+	   </manifest>
+	
+	</jar>
+</target>
+
+<target name="run-test-client" depends="compile">
+	  	<echo message="*** Running Policy Server Single Test Client***" />
+	  	<mkdir dir="log" />
+		<java  dir="${basedir}"
+	           fork="true"
+	           failonerror="true"
+	           maxmemory="64m"
+	           classname="test.policyserver.Client"
+	           >
+	         <classpath>
+	         	<pathelement location="${resources}" />
+	           	<pathelement location="${common.lib}/log4j-1.2.14.jar" />
+	           	<pathelement location="${common.lib}/commons-daemon.jar" />
+	         	<pathelement location="${classes}" />
+	         </classpath>
+	    </java>
+
+	</target>
+	
+	<target name="run-test-controller" depends="compile">
+		  	<echo message="*** Running Policy Server Test Controller***" />
+		  	<mkdir dir="log" />
+			<java  dir="${basedir}"
+		           fork="true"
+		           failonerror="true"
+		           maxmemory="64m"
+		           classname="test.policyserver.Controller"
+		           >
+		         <classpath>
+		         	<pathelement location="${resources}" />
+		           	<pathelement location="${common.lib}/log4j-1.2.14.jar" />
+                    <pathelement location="${common.lib}/commons-daemon.jar" />
+		         	<pathelement location="${common.lib}/jdom.jar" />
+		         	<pathelement location="${classes}" />
+		         </classpath>
+		    </java>
+
+		</target>
+</project>
