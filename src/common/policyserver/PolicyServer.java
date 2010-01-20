@@ -244,6 +244,7 @@ public class PolicyServer  {
 			socketServer.close();
 			threadPool.shutdown();
 			threadPool.awaitTermination(3, TimeUnit.SECONDS);
+			System.exit(0);
 		} catch (IOException e) {
 			log.error(e.getMessage(),e);
 		} catch (InterruptedException e) {
