@@ -79,7 +79,12 @@ public class PolicyServer  {
 	public static void main(String[] args) {		
 		// Start the PolicyServer
 		PolicyServer policyServer = new PolicyServer();
-		policyServer.start();
+		try {
+			policyServer.startListening();
+			policyServer.start();
+		} catch (IOException e) {
+			log.error(e.getMessage(),e);
+		}
 	}
 
 	/**
