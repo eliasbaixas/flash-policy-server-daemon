@@ -4,62 +4,150 @@
 #
 # Syed Mustaffa  March 2008  (www.flash-resources.net)
 
-# configure these for target environment
-POLICY_SERVER_HOME="./"
-POLICY_SERVER_STDOUT="./log/stdout.log"
-PID_FILE="./flash-policy-server.pid"
+NAME=flash-policy-server
+DESC="Flash Policy Server"
 
-JAVA_HOME="/Library/Java/Home"
-JAVA="$JAVA_HOME/bin/java"
-JAVA_OPTS="-server -Xms128m -Xmx256m -XX:PermSize=64m -XX:MaxPermSize=80m "
+# configure these for target environment
+POLICY_SERVER_HOME="/home/elias/src/java/flash-policy-server-daemon"
+POLICY_SERVER_STDOUT="/var/log/$NAME-stdout.log"
+PID_FILE="/var/run/$NAME.pid"
+DAEMON_CLASS=common.policyserver.PolicyServerDaemon
+
+DAEMON=/usr/bin/jsvc
+
+JAVA_OPTS="-Xms128m -Xmx256m -XX:PermSize=64m -XX:MaxPermSize=80m "
+
+JVM_TMP=/tmp/flash-policy-server-tmp
+JSVC_CLASSPATH="$POLICY_SERVER_HOME/resources:\
+$POLICY_SERVER_HOME/lib/log4j-1.2.14.jar:\
+$POLICY_SERVER_HOME/lib/commons-daemon.jar:\
+$POLICY_SERVER_HOME/target/modules/policyserver.jar"
+
+if [ `id -u` -ne 0 ]; then
+   echo "You need root privileges to run this script"
+   exit 1
+fi
+
+# Make sure tomcat is started with system locale
+if [ -r /etc/default/locale ]; then
+   . /etc/default/locale
+   export LANG
+fi
+
+. /lib/lsb/init-functions
+
+if [ -r /etc/default/rcS ]; then
+   . /etc/default/rcS
+fi
+
+POLICY_SERVER_USER=www-data
+
+# The first existing directory is used for JAVA_HOME (if JAVA_HOME is not
+# defined in $DEFAULT)
+JDK_DIRS="/usr/lib/jvm/java-6-openjdk /usr/lib/jvm/java-6-sun /usr/lib/jvm/java-1.5.0-sun /usr/lib/j2sdk1.5-sun /usr/lib/j2sdk1.5-ibm"
+
+# Look for the right JVM to use
+for jdir in $JDK_DIRS; do
+   if [ -r "$jdir/bin/java" -a -z "${JAVA_HOME}" ]; then
+      JAVA_HOME="$jdir"
+   fi
+done
+export JAVA_HOME
+
+[ -f "$DAEMON" ] || exit 0
+
 
 case "$1" in
-start)
-        echo "Starting Flash Policy Server..."
+   start)
 
-	if [ -f $PID_FILE ]; then
-			echo Flash Policy Server appears to be running already
-			exit 1
-    fi
+   if [ -z "$JAVA_HOME" ]; then
+      log_failure_msg "no JDK found - please set JAVA_HOME"
+      exit 1
+   fi
 
-	sleep 3;
+   log_daemon_msg "Starting $DESC" "$NAME"
 
-        # Start
-        CLASSPATH="$POLICY_SERVER_HOME/resources:$POLICY_SERVER_HOME/lib/log4j-1.2.14.jar:$POLICY_SERVER_HOME/target/modules/policyserver.jar"
-        $JAVA $JAVA_OPTS -classpath $CLASSPATH common.policyserver.PolicyServer >>$POLICY_SERVER_STDOUT 2>&1 < /dev/null &
-        echo $! > $PID_FILE
+   if start-stop-daemon --test --start --pidfile "$PID_FILE" \
+      --user $POLICY_SERVER_USER --startas "$JAVA_HOME/bin/java" \
+      >/dev/null; then
 
-        ;;
+      # Remove / recreate JVM_TMP directory
+      rm -rf "$JVM_TMP"
+      mkdir "$JVM_TMP" || {
+      log_failure_msg "could not create JVM temporary directory"
+      exit 1
+   }
+   chown $POLICY_SERVER_USER "$JVM_TMP"
+   cd "$JVM_TMP"
+
+   $DAEMON -user "$POLICY_SERVER_USER" -cp "$JSVC_CLASSPATH" \
+   -outfile SYSLOG -errfile SYSLOG \
+   -pidfile "$PID_FILE" $JAVA_OPTS "$DAEMON_CLASS"
+
+   sleep 5
+   if start-stop-daemon --test --start --pidfile "$PID_FILE" \
+      --user $POLICY_SERVER_USER --startas "$JAVA_HOME/bin/java" \
+      >/dev/null; then
+      log_end_msg 1
+   else
+      log_end_msg 0
+   fi
+else
+   log_progress_msg "(already running)"
+   log_end_msg 0
+fi
+
+;;
 stop)
-        if [ ! -f $PID_FILE ]; then
-                echo Flash Policy Server does not appear to be running
-                exit 2
-        fi
-	
-	# kill and wait for FPS to quit
-        FPS_PID=`cat $PID_FILE`
-		kill $FPS_PID
-		sleep 3;
-        rm $PID_FILE
-        ;;
-restart)
-        $0 stop
-        $0 start
-        ;;
+log_daemon_msg "Stopping $DESC" "$NAME"
+if start-stop-daemon --test --start --pidfile "$PID_FILE" \
+   --user "$POLICY_SERVER_USER" --startas "$JAVA_HOME/bin/java" \
+   >/dev/null; then
+   log_progress_msg "(not running)"
+else
+   $DAEMON -cp "$JSVC_CLASSPATH" -pidfile "$POLICY_SERVER_USER" \
+   -stop "$DAEMON_CLASS"
+fi
+rm -rf "$JVM_TMP"
+log_end_msg 0
+;;
+restart|force-reload)
+if start-stop-daemon --test --stop --pidfile "$PID_FILE" \
+   --user $POLICY_SERVER_USER --startas "$JAVA_HOME/bin/java" \
+   >/dev/null; then
+   $0 stop
+   sleep 1
+fi
+$0 start
+;;
 status )
-	if [ -f $PID_FILE ]; then
-                echo  Flash Policy Server appears to be running
-                exit 1
-        fi
+if start-stop-daemon --test --start --pidfile "$PID_FILE" \
+   --user $POLICY_SERVER_USER --startas "$JAVA_HOME/bin/java" \
+   >/dev/null; then
 
- 	if [ ! -f $PID_FILE ]; then
-                echo Flash Policy Server does not appear to be running
-                exit 2
-        fi
+   if [ -f "$PID_FILE" ]; then
+      log_success_msg "$DESC is not running, but pid file exists."
+      exit 1
+   else
+      log_success_msg "$DESC is not running."
+      exit 3
+   fi
+else
+   log_success_msg "$DESC is running with pid `cat $PID_FILE`"
+fi
+;;
+try-restart)
+if start-stop-daemon --test --start --pidfile "$PID_FILE" \
+   --user $POLICY_SERVER_USER --startas "$JAVA_HOME/bin/java" \
+   >/dev/null; then
+   $0 start
+fi
+;;
 
-	;;
 *)
-        echo "Usage: flash-policy-server {start|stop|restart|status}"
-        exit 1
+	log_success_msg "Usage: $0 {start|stop|restart|try-restart|force-reload|status}"
+	exit 1
 	;;
 esac
+
+exit 0

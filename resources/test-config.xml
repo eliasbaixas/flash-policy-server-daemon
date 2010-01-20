@@ -1,0 +1,4 @@
+<TestConfig host="192.168.3.86" port="845" >
+	<ClientGroup name="Concurrent" concurrent="true" clients="100" repeat_times="-1" interval="1000" />
+	<ClientGroup name="OneByOne" concurrent="false" clients="10" repeat_times="-1" interval="10000" />
+</TestConfig>
