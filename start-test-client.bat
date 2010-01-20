@@ -1,0 +1,1 @@
+@java -classpath resources;lib\log4j-1.2.14.jar;target\classes test.policyserver.Client

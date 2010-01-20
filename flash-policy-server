@@ -1,0 +1,65 @@
+#!/bin/sh
+
+# rc script for Flash Security Policy Server
+#
+# Syed Mustaffa  March 2008  (www.flash-resources.net)
+
+# configure these for target environment
+POLICY_SERVER_HOME="./"
+POLICY_SERVER_STDOUT="./log/stdout.log"
+PID_FILE="./flash-policy-server.pid"
+
+JAVA_HOME="/Library/Java/Home"
+JAVA="$JAVA_HOME/bin/java"
+JAVA_OPTS="-server -Xms128m -Xmx256m -XX:PermSize=64m -XX:MaxPermSize=80m "
+
+case "$1" in
+start)
+        echo "Starting Flash Policy Server..."
+
+	if [ -f $PID_FILE ]; then
+			echo Flash Policy Server appears to be running already
+			exit 1
+    fi
+
+	sleep 3;
+
+        # Start
+        CLASSPATH="$POLICY_SERVER_HOME/resources:$POLICY_SERVER_HOME/lib/log4j-1.2.14.jar:$POLICY_SERVER_HOME/target/modules/policyserver.jar"
+        $JAVA $JAVA_OPTS -classpath $CLASSPATH common.policyserver.PolicyServer >>$POLICY_SERVER_STDOUT 2>&1 < /dev/null &
+        echo $! > $PID_FILE
+
+        ;;
+stop)
+        if [ ! -f $PID_FILE ]; then
+                echo Flash Policy Server does not appear to be running
+                exit 2
+        fi
+	
+	# kill and wait for FPS to quit
+        FPS_PID=`cat $PID_FILE`
+		kill $FPS_PID
+		sleep 3;
+        rm $PID_FILE
+        ;;
+restart)
+        $0 stop
+        $0 start
+        ;;
+status )
+	if [ -f $PID_FILE ]; then
+                echo  Flash Policy Server appears to be running
+                exit 1
+        fi
+
+ 	if [ ! -f $PID_FILE ]; then
+                echo Flash Policy Server does not appear to be running
+                exit 2
+        fi
+
+	;;
+*)
+        echo "Usage: flash-policy-server {start|stop|restart|status}"
+        exit 1
+	;;
+esac
